@@ -1,0 +1,287 @@
+Level 1 Basic LAN and Device Configuration
+•	Project brief 
+o	Build a small office LAN with 2–3 switches, 6–8 PCs, one router for Internet simulation, and a DHCP server.
+•	Topology and components 
+o	1 router; 2 access switches; 6 PCs; 1 server (DHCP); 1 PC as gateway tester.
+•	Key configuration tasks 
+o	Configure basic device names, passwords, and MOTD.
+o	Configure VLAN 10 for staff, VLAN 20 for guests.
+o	Assign access ports; set trunk between switches.
+o	Configure DHCP on the server; set default gateway on router.
+o	Test connectivity across VLANs using inter-VLAN routing on router or Layer 3 switch.
+•	Commands and features to use 
+o	hostname; enable secret; interface; switchport mode access/trunk; vlan; ip address; ip dhcp pool; show ip interface brief; show vlan; show mac address-table.
+•	Verification and test steps 
+o	Verify VLAN membership, assigned IPs from DHCP, ping gateway and between hosts in same VLAN, confirm hosts in different VLANs cannot reach each other until routed.
+•	CV bullet example 
+o	Implemented multi-VLAN office network with DHCP and inter-VLAN routing; validated connectivity and VLAN isolation.
+•	Extensions to showcase additional value 
+o	Add ACL on router to restrict guest VLAN access to internal servers.
+o	Configure basic SNMP monitoring and syslog to the server.
+________________________________________
+
+
+### Project overview
+
+This guide shows step‑by‑step how to build and configure the “Level 1 Basic LAN and Device Configuration” topology in Cisco Packet Tracer: 1 router, 2 access switches, 6 PCs, 1 DHCP server, and 1 PC used as a gateway/tester. It covers naming, passwords, VLANs, trunks, DHCP, inter‑VLAN routing (router‑on‑a‑stick), verification commands, and optional extensions (ACL, SNMP, syslog). Basic Packet Tracer build steps follow standard Packet Tracer workflows.
+
+---
+
+### Topology and addressing plan
+
+- Devices:
+  - Router: R1 (1x GigabitEthernet for Internet / default-gw simulation; 1x G0/0 for internal trunk)
+  - Switches: S1 (access switch A), S2 (access switch B)
+  - Server: DHCP/Syslog/SNMP server (use Packet Tracer Server device)
+  - PCs: PC1–PC6 (staff and guest endpoints)
+  - Tester PC: PC-Test (to simulate external network / Internet)
+
+- VLANs and subnets (example plan):
+  - VLAN 10 Staff: 192.168.10.0/24, gateway 192.168.10.1
+  - VLAN 20 Guest: 192.168.20.0/24, gateway 192.168.20.1
+  - Server management / DHCP: 192.168.99.0/24 (or put server in VLAN 10 if desired)
+  - Router external (to PC‑Test): 10.0.0.1/24
+
+- Example static addressing for devices:
+  - Router subinterfaces (router-on-a-stick): G0/0.10 -> 192.168.10.1/24; G0/0.20 -> 192.168.20.1/24
+  - DHCP server: use Packet Tracer Server app to create pools (see DHCP steps)
+  - PCs: set to DHCP (client) to receive addresses from server
+
+---
+
+### Physical wiring in Packet Tracer
+
+- Connect:
+  - Router G0/0 to S1 Gi0/1 (use straight-through).
+  - S1 Gi0/24 to S2 Gi0/24 (trunk link).
+  - PCs to access ports on S1 and S2.
+  - DHCP/Syslog server to an access port on S1 (or its own VLAN as needed).
+  - Router G0/1 to PC‑Test for simulated Internet.
+
+Place devices logically: put Staff PCs in ports on S1 (VLAN 10), Guest PCs on S2 (VLAN 20) or mix per your lab.
+
+---
+
+### Step‑by‑step configuration: initial device basics
+
+1. Console to each device and set hostname, enable secret, line passwords, MOTD.
+
+Router R1 example:
+```
+enable
+configure terminal
+hostname R1
+enable secret StrongPass!
+service password-encryption
+banner motd #Authorized users only#
+line con 0
+ password consolePwd
+ login
+line vty 0 4
+ password vtyPwd
+ login
+ exit
+```
+
+Switch S1/S2 example:
+```
+enable
+configure terminal
+hostname S1
+enable secret SwStrong!
+service password-encryption
+banner motd #Company Lab#
+line con 0
+ password consolePwd
+ login
+line vty 0 4
+ password vtyPwd
+ login
+```
+
+---
+
+### Configure VLANs and assign access ports
+
+On each switch:
+
+Create VLANs and name:
+```
+configure terminal
+vlan 10
+ name Staff
+vlan 20
+ name Guest
+exit
+```
+
+Assign ports (example):
+```
+interface range fa0/1 - 3         ! staff PCs on S1
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
+interface range fa0/4 - 6         ! guest PCs on S1 (if any) or on S2
+ switchport mode access
+ switchport access vlan 20
+ no shutdown
+```
+
+On S2 assign staff or guest ports similarly. Verify with:
+- show vlan brief
+- show mac address-table
+
+---
+
+### Configure trunk between switches
+
+On S1 and S2 trunk port (example using Gi0/24):
+```
+interface gi0/24
+ switchport trunk encapsulation dot1q    ! if device supports; Packet Tracer often defaults to dot1q
+ switchport mode trunk
+ no shutdown
+```
+Confirm trunk with:
+- show interfaces trunk
+- show vlan brief
+
+---
+
+### Router: inter‑VLAN routing (Router‑on‑a‑stick)
+
+On R1 use subinterfaces for each VLAN on the interface connected to S1 (example G0/0):
+
+```
+interface g0/0
+ no shutdown
+!
+interface g0/0.10
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+!
+interface g0/0.20
+ encapsulation dot1Q 20
+ ip address 192.168.20.1 255.255.255.0
+```
+
+If router supports physical VLAN interfaces (or you have L3 switch), use SVIs on L3 switch instead.
+
+Set default route to external (simulate Internet):
+```
+interface g0/1
+ ip address 10.0.0.1 255.255.255.0
+ no shutdown
+ip route 0.0.0.0 0.0.0.0 10.0.0.254    ! optional if simulating upstream gateway
+```
+
+---
+
+### Configure DHCP on Packet Tracer Server (GUI) or on Router
+
+Option A — DHCP server device (Packet Tracer Server app):
+- Click Server device → Desktop → DHCP → Add pools:
+  - Pool name: STAFF
+  - Network: 192.168.10.0
+  - Subnet mask: 255.255.255.0
+  - Default gateway: 192.168.10.1
+  - DNS: (optional)
+  - Excluded addresses: reserve static ranges as needed
+- Add pool for GUEST (192.168.20.0/24).
+- Start DHCP service.
+
+Option B — Router DHCP (if you prefer):
+```
+ip dhcp excluded-address 192.168.10.1 192.168.10.10    ! reserve if needed
+ip dhcp pool STAFF
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+!
+ip dhcp pool GUEST
+ network 192.168.20.0 255.255.255.0
+ default-router 192.168.20.1
+```
+
+---
+
+### Configure server services (syslog, SNMP)
+
+On Packet Tracer Server device:
+- Desktop → Services → Syslog: enable; confirm server has IP and is reachable.
+- Desktop → Services → SNMP: configure community string (e.g., public) and enable.
+
+On routers/switches, set syslog and SNMP:
+```
+logging 192.168.99.10       ! syslog server IP
+snmp-server community public RO
+```
+
+---
+
+### Optional: ACL to restrict Guest VLAN to internal servers
+
+Example: deny guest access to 192.168.99.0/24 (server network), allow others outbound:
+On R1 (apply to G0/0.20 inbound or to logical interface):
+```
+ip access-list extended GUEST_RESTRICT
+ deny ip 192.168.20.0 0.0.0.255 192.168.99.0 0.0.0.255
+ permit ip any any
+interface g0/0.20
+ ip access-group GUEST_RESTRICT in
+```
+
+---
+
+### Verification and testing steps
+
+1. Confirm interfaces up:
+   - show ip interface brief
+2. Verify VLANs and access port membership:
+   - show vlan brief
+   - show mac address-table
+3. Verify trunk:
+   - show interfaces trunk
+4. Confirm DHCP allocation on PCs:
+   - On PC Desktop → IP Configuration: select DHCP; check IP, gateway, DNS
+   - On server: check DHCP leases in DHCP service GUI
+5. Test connectivity:
+   - From PC in VLAN 10: ping 192.168.10.1 (gateway)
+   - Ping another host in same VLAN (should succeed)
+   - From PC in VLAN 10: ping PC in VLAN 20 (should fail unless routed)
+   - From PC in VLAN 10: ping 192.168.20.1 (router subinterface) — should succeed
+6. Test ACL (if applied):
+   - From Guest PC try to ping server IP in 192.168.99.0; should be denied
+7. Check logs and SNMP:
+   - Syslog messages on the server; test SNMP polling with SNMP tools in Packet Tracer
+
+Useful show commands:
+- show ip interface brief
+- show vlan brief
+- show interfaces trunk
+- show mac address-table
+- show ip route
+- show running-config
+- show ip dhcp binding
+
+---
+
+### Example CV bullet (concise)
+
+- Implemented multi‑VLAN office network with DHCP and inter‑VLAN routing; validated host connectivity, VLAN isolation, and applied ACLs to restrict guest access.
+
+---
+
+### Extensions and ideas to showcase additional value
+
+- Harden management: configure SSH, disable unused services, use management VLAN for switches.
+- Monitoring: configure SNMPv3 and add community/view restrictions; configure syslog with rotation and timestamps.
+- High availability: add a second DHCP server or configure DHCP relay (ip helper-address) on router.
+- Use a Layer‑3 switch: implement SVIs and static or dynamic routing instead of router‑on‑a‑stick to show scalable design.
+- Add captive portal or web filtering for guest VLAN (simulated) to demonstrate security controls.
+
+---
+
+If you want, I can:
+- Provide a full addressing table (IP per PC and port assignments) tailored to your exact port layout.
+- Produce the exact CLI script for each device (router and both switches) ready to paste in Packet Tracer.
+Tell me which of those you prefer and I’ll generate it.
